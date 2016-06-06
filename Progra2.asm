@@ -13,6 +13,11 @@ anchoTablero resw 1
 
 section .data
 
+perro1 db '1,1'
+perro2 db '0,2'				;columna,fila
+perro3 db '1,3'
+liebre db '31,2'
+
 msgError1 db 'Error! Formato del parametro no valido!',10,0
 msgError2 db 'Error! Parametro fuera del rango!',10,'>> Rango permitido: [3,30]',10,0
 msgError3 db 'Error! Debe ingresar el ancho del tablero!',10,'>> Formato: $ ./Progra2 [ancho del tablero (Min 3, Max 40)]',10,0
@@ -29,9 +34,7 @@ main:
 	push ebp
 	mov ebp,esp
 	
-	mov ebx,[ebp+8]				;cantidad de parametros
-	cmp ebx,1
-	je errorNoParametros		;Verifico que el usuario haya ingresado al menos un parametro
+	call contar_parametros
 	
 	xor edx,edx
 	mov eax,[ebp+12]			;inicio del vector
@@ -39,31 +42,14 @@ main:
 	mov dx,word [ecx]
 	
 	call guardar_ancho
-	
-	cmp word[anchoTablero],30
-	ja errorFueraRango
-	cmp word[anchoTablero],3
-	jb errorFueraRango
-
+	call verif_parametro
 	call generarTablero
-
-errorNoParametros:
-	push ebp
-	mov ebp,esp
-	push msgError3
-	call printf
-	mov esp,ebp
-	pop ebp
-	jmp salir
 	
-errorFueraRango:
-	push ebp
-	mov ebp,esp
-	push msgError2
-	call printf
-	mov esp,ebp
-	pop ebp
+	call imprimir_tablero
+	
 	jmp salir
+
+
 	
 salir:
 	mov esp,ebp
@@ -73,58 +59,153 @@ salir:
 ;Subrutinas
 
 generarTablero:
-	xor eax,eax				;eax tendra la direccion a escribier en tablero
-	xor ebx,ebx				;ebx tendra la cantidad maxima de caracteres por fila
-	xor ecx,ecx				;ecx tendra la cantidad de caracteres escritos en la fila
-	xor edx,edx				;edx tendra la cantidad de asteriscos escritos
+	xor eax,eax				;eax tendra la direccion a escribir en tablero
+	xor ebx,ebx				;ebx tendra la fila en la que estoy escribiendo
+	xor ecx,ecx				;ecx tendra la cantidad de asteriscos escritos
+	xor edx,edx				;edx tendra la cantidad de 'perros' colocados
 	
-	push dword 0			;en la pila va a estar la fila en la que estoy escribiendo
+	;push dword 0			;en la pila va a estar la fila en la que estoy escribiendo
 	
-	mov ebx,[anchoTablero]
-	add ebx,ebx
-	add ebx,4
+	;mov ebx,[anchoTablero]
+	;add ebx,ebx
+	;add ebx,4
 	
 	mov eax,tablero
 
 escribir:
-	cmp dword[esp],0
-	je fila_extremos
+	cmp ebx,0
+	je fila_extremos_inicio
+								;Averigua si voy a escribir en una fila de los extremos
+	cmp ebx,4 
+	je fila_extremos_inicio
 	
-	cmp dword[esp],5 
-	je fila_extremos
+	cmp ebx,1
+	je fila_uno_inicio
+								;Averigua si voy a escribir en una fila de los extremos medios
+	cmp ebx,3
+	je fila_tres_inicio
 	
-	cmp dword[esp],1
-	je fila_uno
-	
-	cmp dword[esp],4
-	je fila_cuatro
-	
-	cmp dword[esp],3
-	je fila_medio
+	cmp ebx,2
+	je fila_medio_inicio				;Averigua si voy a escribir en la fila del centro
 
-fila_extremos:
-	mov byte [eax],'  '
-	add eax,2
-	jmp centro
+fila_extremos_inicio:
+	mov word [eax],'  '
+	add eax,2							;Muevo el puntero 2 bytes
+	jmp casillas
 
-fila_uno:
-	mov byte [eax],' /'
-	add eax,2
-	jmp centro
+fila_uno_inicio:
+	mov word [eax],' /'
+	add eax,2							;Muevo el puntero 2 bytes
+	jmp espacios
 	
-fila_cuatro:
-	mov byte [eax],' \\'
-	add eax,2
-	jmp centro
+fila_tres_inicio:
+	mov word [eax],' \'
+	add eax,2							;Muevo el puntero 2 bytes
+	jmp espacios
 
-fila_medio:
-	mov byte [eax],'*-'
+fila_medio_inicio:
+	mov word [eax],'2-'
+	add eax,2							;Muevo el puntero 2 bytes
+	inc edx
+	jmp casillas
+	
+casillas:
+	inc edx
+	
+	cmp ebx,2
+	je centro
+	
+	xor dl,30h
+	mov byte [eax],dl
+	mov byte [eax+1],'-'
+	xor dl,30h
+	
+	cmp ecx,0
+	je perro
+
+centro:									;Salto a esta etiqueta si estoy en la fila del centro
+	mov word [eax],'*-'
+	dec edx
+	
+perro:									;salto a esta etiqueta si hay que colocar un perro
 	add eax,2
+	inc ecx
 	
-centro:
+	cmp cx,word [anchoTablero]
+	jne casillas
 	
+	xor ecx,ecx
 	
+	dec eax
+	
+	jmp finales
+
+espacios:
+	mov word [eax],'|X'
+	add eax,2
+	inc ecx
+	
+	cmp cx,word [anchoTablero]
+	jne espacios
+	
+	xor ecx,ecx
+	
+	dec eax
+	
+	jmp finales
+
+finales:
+	cmp ebx,0
+	je fila_extremos_fin
+								;Averigua si voy a escribir en una fila de los extremos
+	cmp ebx,4 
+	je fila_extremos_fin
+	
+	cmp ebx,1
+	je fila_uno_fin
+								;Averigua si voy a escribir en una fila de los extremos medios
+	cmp ebx,3
+	je fila_tres_fin
+	
+	cmp ebx,2
+	je fila_medio_fin				;Averigua si voy a escribir en la fila del centro
+	
+fila_extremos_fin:
+	mov word [eax],'  '
+	add eax,2							;Muevo el puntero 2 bytes
+	mov byte [eax],10					;ingreso el enter
+	inc eax
+	inc ebx
+	
+	cmp ebx,5							;averiguo si es la ultima fila
+	jne escribir
+	
+	mov byte [eax],0					;si es la ultima fila agrego un caracter nulo
 	ret
+
+fila_uno_fin:
+	mov word [eax],'\ '
+	add eax,2							;Muevo el puntero 2 bytes
+	mov byte [eax],10
+	inc eax
+	inc ebx
+	jmp escribir
+	
+fila_tres_fin:
+	mov word [eax],'/ '
+	add eax,2							;Muevo el puntero 2 bytes
+	mov byte [eax],10
+	inc eax
+	inc ebx
+	jmp escribir
+
+fila_medio_fin:
+	mov word [eax],'-L'
+	add eax,2							;Muevo el puntero 2 bytes
+	mov byte [eax],10
+	inc eax
+	inc ebx
+	jmp escribir
 	
 	
 guardar_ancho:
@@ -183,14 +264,57 @@ menor_diez:
 error:
 	push ebp
 	mov ebp,esp
+	
 	push msgError1
 	call printf
+	
 	mov esp,ebp
 	pop ebp
 	ret
 	
+imprimir_tablero:
+	push ebp
+	mov ebp,esp
 	
+	push tablero
+	call printf
 	
+	mov esp,ebp
+	pop ebp
+	ret
+
+verif_parametro:
+	cmp word[anchoTablero],30
+	ja errorFueraRango
+	cmp word[anchoTablero],3
+	jb errorFueraRango
+	ret
+
+contar_parametros:
+	mov ebx,[ebp+8]				;cantidad de parametros
+	cmp ebx,1
+	je errorNoParametros		;Verifico que el usuario haya ingresado al menos un parametro
+	ret
+	
+errorNoParametros:
+	push ebp
+	mov ebp,esp
+	push msgError3
+	call printf
+	mov esp,ebp
+	pop ebp
+	pop	eax						;Elimino la direccion de retorno
+	jmp salir
+	
+errorFueraRango:
+	push ebp
+	mov ebp,esp
+	push msgError2
+	call printf
+	mov esp,ebp
+	pop ebp
+	pop	eax						;Elimino la direccion de retorno
+	jmp salir
 	
 	
 	
