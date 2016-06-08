@@ -11,6 +11,9 @@ section .bss
 tablero resb 321
 anchoTablero resw 1
 
+perroSeleccion resw 4
+direccion resw 4
+
 section .data
 
 perro1 db '1,1'
@@ -18,14 +21,20 @@ perro2 db '0,2'				;columna,fila
 perro3 db '1,3'
 liebre db '31,2'
 
+msgSeleccionPerro db 'Indique el perro que desea mover: 1,2,3:',10,'~',0
+msgDireccionPerro db 'Indique la direccion en la que desea mover al perro:',10,'>> "w": Arriba',10,'>> "x": Abajo',10,'>> "d": Derecha',10,'~',0
+msgDireccionLiebre db 'Indique la direccion en la que desea mover a la liebre:',10,'>> "w": Arriba',10,'>> "xs": Abajo',10,'>> "d": Derecha',10,'>> "a": Izquierda',10,'>> "e": Arriba Derecha',10,'>> "q": Arriba Izquierda',10,'>> "c": Abajo Derecha',10,'>> "z": Abajo Izquierda',10,'~',0
+
 msgError1 db 'Error! Formato del parametro no valido!',10,0
 msgError2 db 'Error! Parametro fuera del rango!',10,'>> Rango permitido: [3,30]',10,0
 msgError3 db 'Error! Debe ingresar el ancho del tablero!',10,'>> Formato: $ ./Progra2 [ancho del tablero (Min 3, Max 40)]',10,0
+msgError4 db 'Error! Direccion no valida!',10,0
 
 
 section .text
 
 	extern printf				;'exporta' la funcion printf
+	extern read
 	global main
 
 main:
@@ -47,6 +56,9 @@ main:
 	
 	call imprimir_tablero
 	
+	;call leer_perro
+	;call mover_perro
+	
 	jmp salir
 
 
@@ -56,7 +68,9 @@ salir:
 	pop ebp
 	ret
 	
-;Subrutinas
+;-----------------------------------------------------------------------------------------------------
+;											Subrutinas
+;-----------------------------------------------------------------------------------------------------
 
 generarTablero:
 	xor eax,eax				;eax tendra la direccion a escribir en tablero
@@ -94,13 +108,13 @@ fila_extremos_inicio:
 	jmp casillas
 
 fila_uno_inicio:
-	mov word [eax],' /'
-	add eax,2							;Muevo el puntero 2 bytes
+	mov word [eax],' '
+	add eax,1							;Muevo el puntero 2 bytes
 	jmp espacios
 	
 fila_tres_inicio:
-	mov word [eax],' \'
-	add eax,2							;Muevo el puntero 2 bytes
+	mov word [eax],' '
+	add eax,1							;Muevo el puntero 2 bytes
 	jmp espacios
 
 fila_medio_inicio:
@@ -141,16 +155,35 @@ perro:									;salto a esta etiqueta si hay que colocar un perro
 	jmp finales
 
 espacios:
-	mov word [eax],'|X'
-	add eax,2
+	cmp ebx,3
+	je espacios_aux_1
+	
+	mov dword [eax],'/|\|'
+	add eax,4
+	inc ecx
 	inc ecx
 	
-	cmp cx,word [anchoTablero]
-	jne espacios
+	jmp espacios_aux_2
+
+espacios_aux_1:
+	mov dword [eax],'\|/|'
+	add eax,4
+	inc ecx
+	inc ecx
 	
+espacios_aux_2:
+	
+	cmp cx,word [anchoTablero]
+	jb espacios
+	
+	cmp cx,word [anchoTablero]
+	jbe espacios_aux_3
+	sub eax,2
+	
+espacios_aux_3:
 	xor ecx,ecx
 	
-	dec eax
+	;sub eax,1
 	
 	jmp finales
 
@@ -184,16 +217,16 @@ fila_extremos_fin:
 	ret
 
 fila_uno_fin:
-	mov word [eax],'\ '
-	add eax,2							;Muevo el puntero 2 bytes
+	mov word [eax],'\'
+	add eax,1							;Muevo el puntero 2 bytes
 	mov byte [eax],10
 	inc eax
 	inc ebx
 	jmp escribir
 	
 fila_tres_fin:
-	mov word [eax],'/ '
-	add eax,2							;Muevo el puntero 2 bytes
+	mov word [eax],'/'
+	add eax,1							;Muevo el puntero 2 bytes
 	mov byte [eax],10
 	inc eax
 	inc ebx
@@ -209,8 +242,79 @@ fila_medio_fin:
 	
 	
 guardar_ancho:
+	call conversion_ascii_numerico
+	mov [anchoTablero],cl
+	ret
+	
+imprimir_tablero:
+	push ebp
+	mov ebp,esp
+	
+	push tablero
+	call printf
+	
+	mov esp,ebp
+	pop ebp
+	ret
+	
+leer:						;Lee el comando del usuario para mover a un perro
+	;cmp [turno],1
+	;je leer_liebre
+	
+	push ebp
+	mov ebp,esp
+	push msgSeleccionPerro
+	call printf
+	mov esp,ebp
+	pop ebp
+	
+	mov eax,3			;read
+	mov ebx,0			;stdin
+	mov ecx,perroSeleccion		;direccion de buffer
+	mov edx,4			;cantidad de bytes a leer
+	int 0x80
+	
+	mov dl,byte[perroSeleccion]
+	call conversion_ascii_numerico
+	mov byte [perroSeleccion],cl
+	
+	push ebp
+	mov ebp,esp
+	push msgDireccionPerro
+	call printf
+	mov esp,ebp
+	pop ebp
+	
+	mov eax,3			;read
+	mov ebx,0			;stdin
+	mov ecx,direccion		;direccion de buffer
+	mov edx,4			;cantidad de bytes a leer
+	int 0x80
+	
+	ret
+
+leer_liebre:
+	push ebp
+	mov ebp,esp
+	push msgDireccionLiebre
+	call printf
+	mov esp,ebp
+	pop ebp
+	
+	mov eax,3			;read
+	mov ebx,0			;stdin
+	mov ecx,direccion		;direccion de buffer
+	mov edx,4			;cantidad de bytes a leer
+	int 0x80
+	
+	ret
+	
+conversion_ascii_numerico:
 	;como los parametros se interpretan como caracteres ascii
 	;tengo que pasar esos caracteres a decimales, para eso hago un xor a cada caracter
+	
+	;Convierte el valor en dx
+	;El valor queda en el cl
 	
 	cmp dh,0
 	je nulo
@@ -242,23 +346,20 @@ nulo:
 	
 	mov cl,10
 	add cl,dh
-	mov [anchoTablero],cl
 	ret
 	
 veintes:
 	mov cl,20
 	add cl,dh
-	mov [anchoTablero],cl
 	ret
 	
 treintas:
 	mov cl,30
 	add cl,dh
-	mov [anchoTablero],cl
 	ret
 	
 menor_diez:
-	mov [anchoTablero],dl
+	mov cl,dl
 	ret
 	
 error:
@@ -272,16 +373,6 @@ error:
 	pop ebp
 	ret
 	
-imprimir_tablero:
-	push ebp
-	mov ebp,esp
-	
-	push tablero
-	call printf
-	
-	mov esp,ebp
-	pop ebp
-	ret
 
 verif_parametro:
 	cmp word[anchoTablero],30
@@ -316,5 +407,6 @@ errorFueraRango:
 	pop	eax						;Elimino la direccion de retorno
 	jmp salir
 	
+
 	
 	
