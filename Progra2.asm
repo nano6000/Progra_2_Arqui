@@ -17,22 +17,24 @@ direccion resw 4
 
 section .data
 
-liebre db '31,02'
-perro1 db '01,01'
-perro2 db '00,02'				;columna,fila
-perro3 db '01,03'
+liebre db '3102'
+perro1 db '0101'
+perro2 db '0002'				;columna,fila
+perro3 db '0103'
 
-turno db 0
+turno db 0xff
 
 msgSeleccionPerro db 'Indique el perro que desea mover: 1,2,3:',10,0
 msgDireccionPerro db 'Indique la direccion en la que desea mover al perro:',10,'>> "w": Arriba',10,'>> "x": Abajo',10,'>> "d": Derecha',10,0
-msgDireccionLiebre db 'Indique la direccion en la que desea mover a la liebre:',10,'>> "w": Arriba',10,'>> "xs": Abajo',10,'>> "d": Derecha',10,'>> "a": Izquierda',10,'>> "e": Arriba Derecha',10,'>> "q": Arriba Izquierda',10,'>> "c": Abajo Derecha',10,'>> "z": Abajo Izquierda',10,0
+msgDireccionLiebre db 'Indique la direccion en la que desea mover a la liebre:',10,'>> "w": Arriba',10,'>> "x": Abajo',10,'>> "d": Derecha',10,'>> "a": Izquierda',10,'>> "e": Arriba Derecha',10,'>> "q": Arriba Izquierda',10,'>> "c": Abajo Derecha',10,'>> "z": Abajo Izquierda',10,0
 
 msgError1 db 'Error! Formato del parametro no valido!',10,0
 msgError2 db 'Error! Parametro fuera del rango!',10,'>> Rango permitido: [3,30]',10,0
 msgError3 db 'Error! Debe ingresar el ancho del tablero!',10,'>> Formato: $ ./Progra2 [ancho del tablero (Min 3, Max 40)]',10,0
 msgError4 db 'Error! Direccion no valida!',10,0
 msgError5 db 'Error! Numero del perro no valido!',10,10,0
+msgError6 db 'Error! La casilla a la que desea moverse esta ocupada!',10,10,0
+
 
 
 section .text
@@ -61,11 +63,18 @@ main:
 	call imprimir_tablero
 	
 loop:
+	
+	push ebp
+	mov ebp,esp
+	
 	call leer
-	;call mover_perro
 	
 	call imprimir_tablero
 	
+	xor byte [turno],0xff
+	
+	mov esp,ebp
+	pop ebp	
 	jmp loop
 
 
@@ -245,6 +254,29 @@ fila_medio_fin:
 	mov byte [eax],10
 	inc eax
 	inc ebx
+	
+	push eax
+	push ebx
+	push ecx
+	push edx
+	
+	xor eax,eax
+	xor ebx,ebx
+	xor ecx,ecx
+	xor edx,edx
+	
+	mov eax,liebre
+	mov dl,byte[anchoTablero]
+	inc dl
+	call conversion_numerico_ascii
+	mov [eax],ch
+	mov [eax+1],cl
+	
+	pop edx
+	pop ecx
+	pop ebx
+	pop eax
+	
 	jmp escribir
 	
 	
@@ -269,8 +301,8 @@ imprimir_tablero:
 	ret
 	
 leer:						;Lee el comando del usuario para mover a un perro
-	;cmp [turno],0
-	;je leer_liebre
+	cmp byte [turno],0xff
+	je leer_liebre
 	
 	push ebp
 	mov ebp,esp
@@ -317,8 +349,8 @@ leer:						;Lee el comando del usuario para mover a un perro
 	cmp al,78h						;78h = 'x'
 	je abajo
 	
-	;cmp byte [direccion],'d'
-	;je derecha
+	cmp al,64h						;64h = 'd'
+	je derecha
 	
 	jmp error_direccion
 
@@ -336,19 +368,36 @@ leer_liebre:
 	mov edx,4			;cantidad de bytes a leer
 	int 0x80
 	
-	;call mover_liebre
-	ret
+	xor eax,eax
+	mov al,byte[direccion]
+	
+	cmp al,77h						;77h = 'w'
+	je arriba
+	
+	cmp al,78h						;78h = 'x'
+	je abajo
+	
+	cmp al,64h						;64h = 'd'
+	je derecha
+	
+	cmp al,61h						;61h = 'a'
+	je izquierda
+	
+	jmp error_direccion
 	
 arriba:
 	xor edx,edx
 	mov dl,byte[perroSeleccion]
 	
 	xor eax,eax
-	mov al,5
+	mov al,4
 	mul dl								;multiplico 4*perroSeleccion
 	
 	add eax,liebre						;direccion de liebre+desplazamiento
-	
+		
+	push eax
+	push dword[eax]
+		
 	mov dh,byte[eax]
 	mov dl,byte[eax+1]
 	;mov dx,word[eax]
@@ -361,24 +410,34 @@ arriba:
 	je error_direccion
 	
 	push ecx							;guardo la columna actual del perro
-	add eax,3							;me muevo 3 bytes desde el inicio de la direccion
+	add eax,2							;me muevo 3 bytes desde el inicio de la direccion
 
 	mov dh,byte[eax]
 	mov dl,byte[eax+1]
 	call conversion_ascii_numerico
-	
+
 	cmp cl,1
 	je error_direccion
 	
-	;push ecx							;guardo la fila actual del perro
+	push ecx							;guardo la fila actual del perro
+	
+	dec cl
+	mov dl,cl
+	call conversion_numerico_ascii
+	
+	mov [eax],ch
+	mov [eax+1],cl						;Actualizo la 'variable'
+	
 	xor eax,eax
+	
+	pop ecx								;saco la fila
 
 	mov al,byte[largoTotal]
 	dec cl
 	mul cl
 	add ax,ax								;obtengo el desplazamiento para la fila
 	
-	pop edx
+	pop edx								;saco la columna
 	add edx,edx
 	;add edx,edx
 	;pop ecx
@@ -386,21 +445,30 @@ arriba:
 	add eax,tablero
 	add eax,edx
 	
+	push eax							;guardo la direccion de la posicion en el tablero donde voy a mover el perro
+	
+	mov cl,byte[largoTotal]
+	sub eax,ecx
+	sub eax,ecx
+	
 	xor ecx,ecx
 	mov cl,0x2a								;0x2a = '*'
-	mov byte [eax],cl
+	
+	cmp byte[eax],cl
+	jne errorCasillaOcupada
 	
 	xor ebx,ebx
 	
 	mov bl,[perroSeleccion]
-	mov cl,byte[largoTotal]
-	
 	xor ebx,30h
-	
-	sub eax,ecx
-	sub eax,ecx
-	
 	mov byte[eax],bl
+	
+	pop eax								;saco la direccion del tablero
+	mov byte [eax],cl
+
+	pop eax
+	pop eax
+	xor eax,eax
 	
 	ret
 	
@@ -410,10 +478,13 @@ abajo:
 	mov dl,byte[perroSeleccion]
 	
 	xor eax,eax
-	mov al,5
+	mov al,4
 	mul dl								;multiplico 4*perroSeleccion
 	
 	add eax,liebre						;direccion de liebre+desplazamiento
+	
+	push eax
+	push dword[eax]
 	
 	mov dh,byte[eax]
 	mov dl,byte[eax+1]
@@ -427,17 +498,28 @@ abajo:
 	je error_direccion
 
 	push ecx							;guardo la columna actual del perro
-	add eax,3							;me muevo 3 bytes desde el inicio de la direccion
+	add eax,2							;me muevo 3 bytes desde el inicio de la direccion
 
 	mov dh,byte[eax]
 	mov dl,byte[eax+1]
 	call conversion_ascii_numerico
-a:	
+
 	cmp cl,3
 	je error_direccion
 	
+	push ecx
+	
+	inc cl
+	mov dl,cl
+	call conversion_numerico_ascii
+
+	mov [eax],ch
+	mov [eax+1],cl
+	
 	;push ecx							;guardo la fila actual del perro
 	xor eax,eax
+	
+	pop ecx
 
 	mov al,byte[largoTotal]
 	dec cl
@@ -448,31 +530,208 @@ a:
 	add edx,edx
 	;add edx,edx
 	;pop ecx
-b:
+	
 	mov ecx,eax
 	mov eax,tablero
-	sub eax,ecx
+	add eax,ecx
 	add eax,edx
+	
+	push eax
+	
+	mov cl,byte[largoTotal]
+	add eax,ecx
+	add eax,ecx
 	
 	xor ecx,ecx
 	mov cl,0x2a								;0x2a = '*'
-	mov byte [eax],cl
+	
+	cmp byte[eax],cl
+	jne errorCasillaOcupada
 	
 	xor ebx,ebx
-c:	
+	
 	mov bl,[perroSeleccion]
-	mov cl,byte[largoTotal]
-	
 	xor ebx,30h
-	
-	add eax,ecx
-	add eax,ecx
-	
 	mov byte[eax],bl
 	
+	pop eax
+	mov byte [eax],cl
+	
+	pop eax
+	pop eax
+	xor eax,eax
+	
 	ret
-;izquierda:
-;derecha:
+izquierda:
+	xor edx,edx
+	mov dl,byte[perroSeleccion]
+	
+	xor eax,eax
+	mov al,4
+	mul dl								;multiplico 4*perroSeleccion
+	
+	add eax,liebre						;direccion de liebre+desplazamiento
+	
+	push eax
+	push dword[eax]
+	
+	mov dh,byte[eax]
+	mov dl,byte[eax+1]
+	;mov dx,word[eax]
+	call conversion_ascii_numerico
+	
+	cmp cl,0
+	je error_direccion
+	
+	push ecx							;guardo la columna actual del perro
+	
+	inc cl
+	mov dl,cl
+	call conversion_numerico_ascii
+
+	mov [eax],ch
+	mov [eax+1],cl						;guardo la proxima posicion de la ficha
+
+	add eax,2							;me muevo 3 bytes desde el inicio de la direccion
+
+	mov dh,byte[eax]
+	mov dl,byte[eax+1]
+	call conversion_ascii_numerico
+
+	;~ cmp cl,3
+	;~ je error_direccion
+	
+	push ecx
+	
+	;push ecx							;guardo la fila actual del perro
+	xor eax,eax
+	
+	pop ecx
+
+	mov al,byte[largoTotal]
+	dec cl
+	mul cl
+	add ax,ax								;obtengo el desplazamiento para la fila
+	
+	pop edx
+	add edx,edx
+	;add edx,edx
+	;pop ecx
+	
+	mov ecx,eax
+	mov eax,tablero
+	add eax,ecx
+	add eax,edx
+	
+	push eax
+	
+	xor ecx,ecx
+	mov cl,0x2a								;0x2a = '*'
+	
+	sub eax,2
+pausa:
+	cmp byte[eax],cl
+	jne errorCasillaOcupada
+	
+	xor ebx,ebx
+	
+	mov bl,[perroSeleccion]
+	xor ebx,30h
+	mov byte[eax],bl
+	
+	pop eax
+	mov byte [eax],cl
+	
+	pop eax
+	pop eax
+	xor eax,eax
+	
+	ret
+derecha:
+	xor edx,edx
+	mov dl,byte[perroSeleccion]
+	
+	xor eax,eax
+	mov al,4
+	mul dl								;multiplico 4*perroSeleccion
+	
+	add eax,liebre						;direccion de liebre+desplazamiento
+	
+	push eax
+	push dword[eax]
+	
+	mov dh,byte[eax]
+	mov dl,byte[eax+1]
+	;mov dx,word[eax]
+	call conversion_ascii_numerico
+	
+	cmp cl,31
+	je error_direccion
+	
+	push ecx							;guardo la columna actual del perro
+	
+	inc cl
+	mov dl,cl
+	call conversion_numerico_ascii
+
+	mov [eax],ch
+	mov [eax+1],cl						;guardo la proxima posicion de la ficha
+
+	add eax,2							;me muevo 3 bytes desde el inicio de la direccion
+
+	mov dh,byte[eax]
+	mov dl,byte[eax+1]
+	call conversion_ascii_numerico
+
+	;~ cmp cl,3
+	;~ je error_direccion
+	
+	push ecx
+	
+	;push ecx							;guardo la fila actual del perro
+	xor eax,eax
+	
+	pop ecx
+
+	mov al,byte[largoTotal]
+	dec cl
+	mul cl
+	add ax,ax								;obtengo el desplazamiento para la fila
+	
+	pop edx
+	add edx,edx
+	;add edx,edx
+	;pop ecx
+	
+	mov ecx,eax
+	mov eax,tablero
+	add eax,ecx
+	add eax,edx
+	
+	push eax
+	
+	xor ecx,ecx
+	mov cl,0x2a								;0x2a = '*'
+	
+	add eax,2
+	
+	cmp byte[eax],cl
+	jne errorCasillaOcupada
+	
+	xor ebx,ebx
+	
+	mov bl,[perroSeleccion]
+	xor ebx,30h
+	mov byte[eax],bl
+	
+	pop eax
+	mov byte [eax],cl
+	
+	pop eax
+	pop eax
+	xor eax,eax
+	
+	ret
 	
 	
 conversion_ascii_numerico:
@@ -529,6 +788,52 @@ treintas:
 	ret
 	
 menor_diez:
+	mov cl,dl
+	ret
+	
+conversion_numerico_ascii:
+	;convierte un numero en ascii
+	
+	;Convierte el valor en dl
+	;El valor queda en el cx
+	
+	xor ecx,ecx
+	
+	cmp dl,10						;verifico si el numero es menor que 10
+								;en ese caso habria un 0 en el dh
+	jb menor_diez_2
+	
+	cmp dl,30						;verifico si el numero es 30 y algo
+								;en ese caso habria un 3 en el dh
+	ja treintas_2
+	
+	cmp dl,20						;verifico si el numero es menor que 20
+								;en ese caso habria un 2 en el dh
+	ja veintes_2
+	
+	mov ch,31h
+	sub dl,10
+	xor dl,30h
+	mov cl,dl
+	ret
+	
+veintes_2:
+	mov ch,32h
+	sub dl,20
+	xor dl,30h
+	mov cl,dl
+	ret
+	
+treintas_2:
+	mov ch,33h
+	sub dl,30
+	xor dl,30h
+	mov cl,dl
+	ret
+	
+menor_diez_2:
+	mov ch,30h
+	xor dl,30h
 	mov cl,dl
 	ret
 	
@@ -600,3 +905,24 @@ error_direccion:
 	pop ebp
 	
 	jmp leer
+
+errorCasillaOcupada:
+	mov eax,dword[esp+4]			;datos
+	mov ebx,dword[esp+8]			;direccion
+	
+	mov dword[ebx],eax
+	
+	push ebp
+	mov ebp,esp
+	push msgError6
+	call printf
+	mov esp,ebp
+	pop ebp
+	
+	pop eax							;direccion del tablero
+	pop eax							;datos
+	pop eax							;direccion
+	
+	jmp leer
+
+
