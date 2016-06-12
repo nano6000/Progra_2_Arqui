@@ -24,10 +24,14 @@ perro2 db '0002'				;columna,fila
 perro3 db '0103'
 
 turno db 0xff
+ganador db '-'
 
 msgSeleccionPerro db 'Indique el perro que desea mover: 1,2,3:',10,0
 msgDireccionPerro db 'Indique la direccion en la que desea mover al perro:',10,'>> "w": Arriba',10,'>> "x": Abajo',10,'>> "d": Derecha',10,0
 msgDireccionLiebre db 'Indique la direccion en la que desea mover a la liebre:',10,'>> "w": Arriba',10,'>> "x": Abajo',10,'>> "d": Derecha',10,'>> "a": Izquierda',10,'>> "e": Arriba Derecha',10,'>> "q": Arriba Izquierda',10,'>> "c": Abajo Derecha',10,'>> "z": Abajo Izquierda',10,0
+msgGanadorLiebre db 'Game Over! El ganador es la liebre',10,10,0
+msgGanadorPerros db 'Game Over! Los ganadore son los perros!',10,10,0
+
 
 msgError1 db 'Error! Formato del parametro no valido!',10,0
 msgError2 db 'Error! Parametro fuera del rango!',10,'>> Rango permitido: [3,30]',10,0
@@ -71,14 +75,45 @@ loop:
 	call leer
 	
 	call imprimir_tablero
+	call buscar_salida
+	call verif_posiciones
 	
 	xor byte [turno],0xff
 	
 	mov esp,ebp
 	pop ebp	
+	
+	cmp byte[ganador],'-'
+	jne gameOver
+	
 	jmp loop
 
+gameOver:
+	cmp byte[ganador],'l'
+	je gameOver_liebre
+	
+	cmp byte[ganador],'p'
+	je gameOver_perro
 
+gameOver_liebre:
+	push ebp
+	mov ebp,esp
+	push msgGanadorLiebre
+	call printf
+	mov esp,ebp
+	pop ebp
+	
+	jmp salir
+	
+gameOver_perro:
+	push ebp
+	mov ebp,esp
+	push msgGanadorPerros
+	call printf
+	mov esp,ebp
+	pop ebp
+	
+	jmp salir
 	
 salir:
 	mov esp,ebp
@@ -1304,13 +1339,13 @@ buscar_salida:
 	call conversion_ascii_numerico
 		
 	push ecx							;guardo la columna actual del perro
-	
+
 	add eax,2							;me muevo 2 bytes desde el inicio de la direccion
 	
 	mov dh,byte[eax]
 	mov dl,byte[eax+1]
 	call conversion_ascii_numerico
-	
+
 	push ecx							;guardo la fila actual del perro
 	
 	xor eax,eax
@@ -1327,39 +1362,178 @@ buscar_salida:
 	mov edx, dword[esp+4]				;simulo un pop del segundo elemento en la pila
 										;para no borrar ese elemento y utlizarlo mas adelante
 	add edx,edx
-	
+
+	mov ecx,eax
 	mov eax,tablero
-	add ecx,eax
-	
-	xor eax,eax
-	mov al,byte[largoTotal]
+	add eax,ecx
+	add eax,edx
 	
 	pop edx								;saco el valor de la fila
+	
+	xor ebx,ebx
+	mov bl,byte[largoTotal]
 	
 	cmp dl,3
 	je buscar_arriba						;busca salidas hacia 'arriba' de la liebre
 	
-	cmp dl,0
+	cmp dl,1
 	je buscar_abajo							;busca salidas hacia 'abajo' de la liebre
 	
 	pop edx								;saco el valor de la columna
 	
+	xor ebx,ebx
 	mov bl,[columTotales]
+	;~ dec bl
 	
 	cmp dl,bl
 	je buscar_izquierda
-	
-	;~ dec bl
-	;~ cmp dl,bl
-	;~ je buscar_especial						;busca el caso especial en el que la liebre
 											;~ ;en la tercera fila y penultima columna
 	ret
 
-buscar_arriba:
+buscar_arriba:	
+	pop edx
+	cmp byte[eax-2],0x2a
+	je apertura
 	
-;~ buscar_abajo:
+	sub eax,ebx
+	sub eax,ebx
+	
+	cmp byte[eax],0x2a
+	je apertura
+	
+	add eax,ebx
 
-;~ buscar_izquierda:
+	cmp byte[eax-1],0x5c						;0x5c = '\'
+	je apertura
+		
+	add eax,ebx
+
+	cmp byte[eax+2],0x20						;0x20 = ' '
+	je especial_1
+	
+	cmp byte[eax+2],0x2a						;0x2a = '*'
+	je apertura
+	
+	jmp encerrado
+	
+especial_1:
+	sub eax,ebx
+	sub eax,ebx
+	cmp byte[eax+2],0x2a
+	je apertura
+	
+	jmp encerrado
+
+buscar_abajo:
+	pop edx
+	cmp byte[eax-2],0x2a
+	je apertura
+	
+	add eax,ebx
+	add eax,ebx
+	
+	cmp byte[eax],0x2a
+	je apertura
+	
+	sub eax,ebx
+
+	cmp byte[eax-1],0x2f						;0x2f = '/'
+	je apertura
+		
+	sub eax,ebx
+
+	cmp byte[eax+2],0x20						;0x20 = ' '
+	je especial_2
+	
+	cmp byte[eax+2],0x2a						;0x2a = '*'
+	je apertura
+
+	jmp encerrado
+	
+especial_2:
+	add eax,ebx
+	add eax,ebx
+	cmp byte[eax+2],0x2a
+	je apertura
+	
+	jmp encerrado
+	
+buscar_izquierda:
+	xor ebx,ebx
+	mov bl,byte[largoTotal]
+	
+	sub eax,2
+	
+	cmp byte[eax],0x2a
+	je apertura
+	
+	sub eax,ebx
+	sub eax,ebx
+	
+	cmp byte[eax],0x2a
+	je apertura
+	
+	add eax,ebx
+	add eax,ebx
+	
+	add eax,ebx
+	add eax,ebx
+		
+	cmp byte[eax],0x2a
+	je apertura
+	
+	jmp encerrado
+
+apertura:
+	ret
+	
+encerrado:
+	mov byte[ganador],'p'
+	ret
+	
+verif_posiciones:
+	xor eax,eax
+	xor ebx,ebx
+	xor ecx,ecx
+	xor edx,edx
+	
+	mov eax,liebre
+	mov dh,byte[eax]
+	mov dl,byte[eax+1]
+	call conversion_ascii_numerico
+	mov bl,cl
+	
+	add eax,4									;perro 1
+	mov dh,byte[eax]
+	mov dl,byte[eax+1]
+	call conversion_ascii_numerico
+	
+	cmp bl,cl
+	ja noEscape
+	
+	add eax,4									;perro 2
+	mov dh,byte[eax]
+	mov dl,byte[eax+1]
+	call conversion_ascii_numerico
+	
+	cmp bl,cl
+	ja noEscape
+	
+	add eax,4									;perro 3
+	mov dh,byte[eax]
+	mov dl,byte[eax+1]
+	call conversion_ascii_numerico
+	
+	cmp bl,cl
+	ja noEscape
+	
+	mov byte[ganador],'l'
+	ret
+	
+noEscape:
+	ret 
+	
+	
 	
 ;///////////////////////////////////////////////////////////////////////////////////////////////
 ;///////////////////////////////	Errores		////////////////////////////////////////////////
