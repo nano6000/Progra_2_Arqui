@@ -25,6 +25,7 @@ perro3 db '0103'
 
 turno db 0xff
 ganador db '-'
+movimientosVerticales db 0x00
 
 msgSeleccionPerro db 'Indique el perro que desea mover: 1,2,3:',10,0
 msgDireccionPerro db 'Indique la direccion en la que desea mover al perro:',10,'>> "w": Arriba',10,'>> "x": Abajo',10,'>> "d": Derecha',10,0
@@ -77,6 +78,7 @@ loop:
 	call imprimir_tablero
 	call buscar_salida
 	call verif_posiciones
+	call verif_movimientos
 	
 	xor byte [turno],0xff
 	
@@ -450,6 +452,8 @@ arriba:
 	xor edx,edx
 	mov dl,byte[perroSeleccion]
 	
+	call verif_perro
+	
 	xor eax,eax
 	mov al,4
 	mul dl								;multiplico 4*perroSeleccion
@@ -536,6 +540,8 @@ abajo:
 	xor edx,edx
 	mov dl,byte[perroSeleccion]
 	
+	call verif_perro
+	
 	xor eax,eax
 	mov al,4
 	mul dl								;multiplico 4*perroSeleccion
@@ -621,6 +627,7 @@ abajo:
 	
 	ret
 izquierda:
+	call restart_counter
 	xor edx,edx
 	mov dl,byte[perroSeleccion]
 	
@@ -700,6 +707,8 @@ izquierda:
 	
 	ret
 derecha:
+	call restart_counter
+	
 	xor edx,edx
 	mov dl,byte[perroSeleccion]
 	
@@ -1309,6 +1318,17 @@ error:
 	pop ebp
 	ret
 	
+verif_movimientos:
+	cmp byte[movimientosVerticales],0x0a
+	je diezMovimientos
+	ret
+diezMovimientos:
+	mov byte[ganador],'l'
+	ret
+
+restart_counter:
+	mov byte[movimientosVerticales],0x00
+	ret
 
 verif_parametro:
 	cmp word[anchoTablero],30
@@ -1329,6 +1349,16 @@ verif_liebre:
 	ret
 es_liebre:
 	mov bl,0x4c
+	ret
+	
+verif_perro:
+	cmp dl,0
+	jne es_perro
+	ret
+es_perro:
+	mov al,byte[movimientosVerticales]
+	inc al
+	mov byte[movimientosVerticales],al
 	ret
 	
 buscar_salida:
