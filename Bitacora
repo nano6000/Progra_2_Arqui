@@ -1,0 +1,57 @@
+Bitacora Progra 2
+
+Domingo 5 de junio
+	
+	3:20 pm:
+
+		Objetivo 1: Generar el tablero (sin las 'fichas' del
+	juego) y mostrarlo en consola.
+		Problemas: Ninguno
+
+	11:50pm:
+
+		Objetivo 2: Colocar las fichas en el tablero.
+		Problemas: Ninguno
+
+Martes 7 de junio
+
+	7:50 pm:
+
+		Objetivo 3: Corregir el diseno del tablero.
+		Problemas: Ninguno
+
+	10:30 pm:
+		Objetivo 4: Mover las fichas de los perros.
+		Problemas: Problemas de logica en cuanto a los
+	desplazamientos.
+
+Miercoles 8 de junio
+
+	5:50 pm:
+
+		Objetivo 5: Mover la ficha de la liebre (en diagonal).
+		Problemas: Ninguno
+
+Sabado 11 de junio
+
+	12:40 am:
+
+		Objetivo 6: Calcular cuando la liebre esta atrapada.
+		Problemas: Problemas de ubicacion en la matriz y
+	comparacion de datos.
+
+	8:30 pm:
+
+		Objetivo 7: Calcular cuando la liebre se posiciona a la 
+	izquierda de todos los perros.
+		Problemas: Ninguno
+
+Martes 14 de junio:
+
+	3:30 pm:
+		
+		Objetivo 8: Agregar opcion de reinciar y revancha.
+	Contar cuantas veces se mueven los perros verticalmente, para
+	finalizara la partida.
+		Problemas: Ninguno
+

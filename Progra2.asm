@@ -8,32 +8,42 @@
 
 section .bss
 
-tablero resb 321
-anchoTablero resw 1
+tablero resb 321						;Espacio en memoria reservada para el tablero
+anchoTablero resw 1						;Variables para el control y movimiento dentro de la matriz
 largoTotal resw 1
 
-perroSeleccion resw 4
-direccion resw 4
-columTotales resb 1
+perroSeleccion resw 4					;Variable para guardar temporalmente la seleccion del usuario
+direccion resw 4						;Variable para guardar la direccion que selecciono el usuario
+
+columTotales resb 1						;Total de columnas totales, contando las de los lados
+
+nuevoAncho resw 1						;Nuevo ancho con el que se reiniciara el juego
+buffer resb 1
 
 section .data
 
+;------------------	Posiciones de las fichas en el tablero	--------------------------
 liebre db '3102'
 perro1 db '0101'
-perro2 db '0002'				;columna,fila
+perro2 db '0002'						;columna,fila
 perro3 db '0103'
 
+;------------------	Variables de estado y control del juego	--------------------------
 turno db 0xff
 ganador db '-'
-movimientosVerticales db 0x00
+movimientosVerticales db 0x00			;Cantidad de veces que los perros se mueven
+											;hacia arriba o hacia abajo
 
+;--------------------------	Mensajes al usuario	--------------------------------------
 msgSeleccionPerro db 'Indique el perro que desea mover: 1,2,3:',10,0
 msgDireccionPerro db 'Indique la direccion en la que desea mover al perro:',10,'>> "w": Arriba',10,'>> "x": Abajo',10,'>> "d": Derecha',10,0
 msgDireccionLiebre db 'Indique la direccion en la que desea mover a la liebre:',10,'>> "w": Arriba',10,'>> "x": Abajo',10,'>> "d": Derecha',10,'>> "a": Izquierda',10,'>> "e": Arriba Derecha',10,'>> "q": Arriba Izquierda',10,'>> "c": Abajo Derecha',10,'>> "z": Abajo Izquierda',10,0
 msgGanadorLiebre db 'Game Over! El ganador es la liebre',10,10,0
 msgGanadorPerros db 'Game Over! Los ganadore son los perros!',10,10,0
+msgGameOver db 'Desea:',10,'1) Reiniciar el juego con otro tamano de tablero',10,'2) Revancha con el mismo tamano de tablero',10,'3) Finalizar el juego',10,0
+msgNuevoAncho db 10,'Ingrese el nuevo ancho con el que desea iniciar el juego, ingrese "0" para cancelar y finalizar el juego',10,0
 
-
+;--------------------------	Mensajes de error	---------------------------------------
 msgError1 db 'Error! Formato del parametro no valido!',10,0
 msgError2 db 'Error! Parametro fuera del rango!',10,'>> Rango permitido: [3,30]',10,0
 msgError3 db 'Error! Debe ingresar el ancho del tablero!',10,'>> Formato: $ ./Progra2 [ancho del tablero (Min 3, Max 40)]',10,0
@@ -41,11 +51,12 @@ msgError4 db 'Error! Direccion no valida!',10,0
 msgError5 db 'Error! Numero del perro no valido!',10,10,0
 msgError6 db 'Error! La casilla a la que desea moverse esta ocupada!',10,10,0
 msgError7 db 'Error! No es posible realizar el movimiento deseado!',10,10,0
+msgError8 db 'Error! Opcion no valida! Por favor ingrese una opcion valida',10,10,0
 
 
 section .text
 
-	extern printf				;'exporta' la funcion printf
+	extern printf								;'exporta' la funcion printf
 	extern read
 	global main
 
@@ -53,24 +64,27 @@ main:
 
 	nop
 	push ebp
-	mov ebp,esp
+	mov ebp,esp									;Creo un stackframe
 	
 	call contar_parametros
 	
 	xor edx,edx
-	mov eax,[ebp+12]			;inicio del vector
-	mov ecx,dword[eax+4]		;guardo la direccion del primer parametro (largo del tablero)
-	mov dx,word [ecx]
+	mov eax,[ebp+12]							;inicio del vector
+	mov ecx,dword[eax+4]						;guardo la direccion del primer parametro (largo del tablero)
+	mov dx,word [ecx]							;guardo el dato del primer parametro
 	
 	call guardar_ancho
 	call verif_parametro
+	
+revancha:
+	call resetData
 	call generarTablero
 	
 	call imprimir_tablero
 	
-loop:
+loop:											;loop principal del juego
 	
-	push ebp
+	push ebp									;Creo un nuevo stackframe para el juego
 	mov ebp,esp
 	
 	call leer
@@ -80,23 +94,24 @@ loop:
 	call verif_posiciones
 	call verif_movimientos
 	
-	xor byte [turno],0xff
+	xor byte [turno],0xff						;Paso de turno
 	
 	mov esp,ebp
 	pop ebp	
 	
-	cmp byte[ganador],'-'
+	cmp byte[ganador],'-'						;Verifico si ya hay algun ganador
 	jne gameOver
 	
 	jmp loop
 
 gameOver:
-	cmp byte[ganador],'l'
+	cmp byte[ganador],'l'						;Verifico si la liebre gano la partida
 	je gameOver_liebre
 	
-	cmp byte[ganador],'p'
+	cmp byte[ganador],'p'						;Verifico si los perros ganaron la partida
 	je gameOver_perro
 
+;--------------------- Imprime el mensaje respectivo del ganador
 gameOver_liebre:
 	push ebp
 	mov ebp,esp
@@ -105,7 +120,7 @@ gameOver_liebre:
 	mov esp,ebp
 	pop ebp
 	
-	jmp salir
+	jmp standBy
 	
 gameOver_perro:
 	push ebp
@@ -115,8 +130,59 @@ gameOver_perro:
 	mov esp,ebp
 	pop ebp
 	
-	jmp salir
+	jmp standBy
 	
+standBy:
+	push ebp
+	mov ebp,esp
+	push msgGameOver
+	call printf
+	mov esp,ebp
+	pop ebp
+	
+	mov eax,3			;read
+	mov ebx,0			;stdin
+	mov ecx,buffer		;direccion de buffer
+	mov edx,4			;cantidad de bytes a leer
+	int 0x80
+
+	;Verifico cual opcion escogio el usuario
+	cmp byte[buffer],0x31
+	je reiniciar
+	
+	cmp byte[buffer],0x32
+	je revancha
+	
+	cmp byte[buffer],0x33
+	je salir
+	
+	jmp errorInputGameOver
+	
+reiniciar:
+	push ebp
+	mov ebp,esp
+	push msgNuevoAncho
+	call printf
+	mov esp,ebp
+	pop ebp
+	
+	mov eax,3			;read
+	mov ebx,0			;stdin
+	mov ecx,nuevoAncho		;direccion de buffer
+	mov edx,4			;cantidad de bytes a leer
+	int 0x80
+
+	;Verifico si el usuario cambio de opinion y desea salir del juego 
+	cmp byte[nuevoAncho],0x30
+	je salir
+	
+	;Guardo el nuevo ancho
+	xor dx,dx
+	mov dx,word[nuevoAncho]
+	call guardar_ancho
+	
+	jmp revancha	
+
 salir:
 	mov esp,ebp
 	pop ebp
@@ -126,91 +192,100 @@ salir:
 ;///////////////////////////////	Subrutinas		////////////////////////////////////////////////
 ;///////////////////////////////////////////////////////////////////////////////////////////////
 
+resetData:									;Reinicia los contadores y variables de control
+	mov byte[ganador],'-'
+	mov byte[turno],0xff
+	
+	mov dword[liebre],'3102'
+	mov dword[perro1],'0101'
+	mov dword[perro2],'0002'
+	mov dword[perro3],'0103'
+	
+	mov byte[movimientosVerticales],0x00
+	ret
+
 generarTablero:
 	xor eax,eax				;eax tendra la direccion a escribir en tablero
 	xor ebx,ebx				;ebx tendra la fila en la que estoy escribiendo
 	xor ecx,ecx				;ecx tendra la cantidad de asteriscos escritos
 	xor edx,edx				;edx tendra la cantidad de 'perros' colocados
 	
-	;push dword 0			;en la pila va a estar la fila en la que estoy escribiendo
-	
-	;mov ebx,[anchoTablero]
-	;add ebx,ebx
-	;add ebx,4
-	
 	mov eax,tablero
 
 escribir:
+	;Averiguo en que fila del tablero voy a escribir
 	cmp ebx,0
 	je fila_extremos_inicio
-								;Averigua si voy a escribir en una fila de los extremos
+	
 	cmp ebx,4 
 	je fila_extremos_inicio
 	
 	cmp ebx,1
 	je fila_uno_inicio
-								;Averigua si voy a escribir en una fila de los extremos medios
+	
 	cmp ebx,3
 	je fila_tres_inicio
 	
 	cmp ebx,2
-	je fila_medio_inicio				;Averigua si voy a escribir en la fila del centro
-
+	je fila_medio_inicio
+	
 fila_extremos_inicio:
-	mov word [eax],'  '
+	mov word [eax],'  '					;Escribo los 2 espacios en blacon del principio de la primera y segunda fila
 	add eax,2							;Muevo el puntero 2 bytes
 	jmp casillas
 
 fila_uno_inicio:
-	mov word [eax],' '
+	mov word [eax],' '					;Escribo un espacio en blaco del principio de la segunda fila
 	add eax,1							;Muevo el puntero 2 bytes
 	jmp espacios
 	
 fila_tres_inicio:
-	mov word [eax],' '
+	mov word [eax],' '					;Escribo un espacio en blaco del principio de la cuarta fila
 	add eax,1							;Muevo el puntero 2 bytes
 	jmp espacios
 
 fila_medio_inicio:
-	mov word [eax],'2-'
+	mov word [eax],'2-'					;Escribo la casilla del extra del medio
 	add eax,2							;Muevo el puntero 2 bytes
-	inc edx
+	inc edx								;Indico que escribi un perro
 	jmp casillas
 	
-casillas:
-	inc edx
+casillas:								;Dibujo las casillas del tablero
+	inc edx								;Siempre incremento la cantidad de perros
+										;Y la decremento si no corresponde colocar un perro
 	
-	cmp ebx,2
-	je centro
-	
-	xor dl,30h
-	mov byte [eax],dl
-	mov byte [eax+1],'-'
-	xor dl,30h
-	
-	cmp ecx,0
-	je perro
+	cmp ebx,2							;Si ya escribi un caracter, significa que no voy a colocar un perro
+	je centro							;Lo que significa que no hay que ejecutar el codigo siguiente
 
-centro:									;Salto a esta etiqueta si estoy en la fila del centro
-	mov word [eax],'*-'
-	dec edx
+	xor dl,30h							;Convierto el numero del perro en ascci
+	mov byte [eax],dl					;Lo escribo en el tablero
+	mov byte [eax+1],'-'				;Y agrego un guion para unir las casillas
+	xor dl,30h
 	
-perro:									;salto a esta etiqueta si hay que colocar un perro
-	add eax,2
-	inc ecx
+	cmp ecx,0							;Confirmo si estoy escribiendo la primera casilla
+	je perro							;Si es asi, salto a 'perro' y no escribo 
+
+centro:									;Salto a esta etiqueta si no voy a colocar un perro
+	mov word [eax],'*-'					;Sobreescribo la ficha del perro
+	dec edx								;Disminuyo la cantidad de perros en el tablero
 	
-	cmp cx,word [anchoTablero]
-	jne casillas
+perro:									;salto a esta etiqueta si habia que colocar un perro
+	add eax,2							;Aumento en 2 la direccion a escribir
+	inc ecx								;Aumento la cantidad de asteriscos
 	
-	xor ecx,ecx
+	cmp cx,word [anchoTablero]			;Compruebo si ya escribi todos los asteriscos de debia escribir
+	jne casillas						;Sino sigo escribiendo casillas
 	
-	dec eax
+	xor ecx,ecx							;Limpio la cantidad de asteriscos
+	
+	dec eax								;Decremento en uno la direccion a escribir
+										;esto para eliminar el '-' extra escrito al final
 	
 	jmp finales
 
-espacios:
-	cmp ebx,3
-	je espacios_aux_1
+espacios:								;Escribo en las filas de en medio de las casillas (las uniones)
+	cmp ebx,3							;Verifico en que fila voy a escribir
+	je espacios_aux_1					;<-- Voy a escribir en la fila 3
 	
 	mov dword [eax],'/|\|'
 	add eax,4
@@ -220,7 +295,7 @@ espacios:
 	jmp espacios_aux_2
 
 espacios_aux_1:
-	mov dword [eax],'\|/|'
+	mov dword [eax],'\|/|'				;Escribo en la fila 3
 	add eax,4
 	inc ecx
 	inc ecx
@@ -236,8 +311,6 @@ espacios_aux_2:
 	
 espacios_aux_3:
 	xor ecx,ecx
-	
-	;sub eax,1
 	
 	jmp finales
 
@@ -1213,9 +1286,11 @@ conversion_ascii_numerico:
 	
 	cmp dh,0
 	je nulo
+	cmp dh,0x0a
+	je nulo
 	cmp dh,30h
 	jb error
-	cmp dh,39h
+	cmp dh,3ah
 	ja error
 nulo:
 	cmp dl,30h
@@ -1233,6 +1308,10 @@ nulo:
 	
 	cmp dh,30h						;verifico si el numero es menor que 10
 								;en ese caso habria un 0 (30h) en el dh
+	je menor_diez
+	
+	cmp dh,3ah						;verifico si entro un enter por accidente
+								;en ese caso habria un a (3ah) en el dh
 	je menor_diez
 	
 	cmp dl,3						;verifico si el numero es 30 y algo
@@ -1591,7 +1670,7 @@ errorFueraRango:
 	pop	eax						;Elimino la direccion de retorno
 	
 	xor eax,eax
-	jmp salir
+	jmp reiniciar
 	
 error_numero_perro:
 	push ebp
@@ -1661,5 +1740,12 @@ error_movimiento:
 	
 	jmp leer
 	
-
-
+errorInputGameOver:
+	push ebp
+	mov ebp,esp
+	push msgError8
+	call printf
+	mov esp,ebp
+	pop ebp
+	
+	jmp standBy
